@@ -1,0 +1,39 @@
+$adminEmail = 'xyz@email.com' # Your email address
+$workspaceFilePath = 'mypath\workspace.csv' # Path where the "workspaces.csv" file is located
+$workspaceCSV = Import-CSV $workspaceFilePath # Import the csv file into a variable
+
+$apiRequestCount = 0
+$apiRequestLimit = 200
+
+Connect-PowerBIServiceAccount # Connect to Power BI Service
+
+foreach ($workspace in $workspaceCSV) 
+{ # Loop through the CSV
+    $workspaceId = $workspace.Id
+    
+    # Get current users of the workspace
+    $currentUsers = Get-PowerBIWorkspace -Scope Organization -Id $workspaceId | Select-Object -ExpandProperty Users
+
+    # Increment the API request count
+    $apiRequestCount++
+
+    # Check if the admin email is already a member of the workspace
+    $userExists = $currentUsers | Where-Object { $_.UserPrincipalName -eq $adminEmail }
+
+    if (-not $userExists) {
+        # Add your email as an admin for the current workspace
+        Add-PowerBIWorkspaceUser -Scope Individual -Id $workspaceId -AccessRight Admin -PrincipalType Group -Identifier $adminEmail
+        Write-Output $workspaceId
+        # Increment the API request count
+        $apiRequestCount++
+    }
+    Write-Output $workspaceId
+    # Check if the API request count has reached the limit
+    if ($apiRequestCount -ge $apiRequestLimit) {
+        Write-Output "API request limit reached. Pausing for 1 hour."
+        Start-Sleep -Seconds 3600 # Pause for 1 hour
+        $apiRequestCount = 0 # Reset the API request count after the pause
+    }
+}
+
+Disconnect-PowerBIServiceAccount # Disconnect from Power BI Service
